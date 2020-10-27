@@ -9,6 +9,7 @@ const uglify = require('gulp-uglify-es').default;
 const autoprefixer = require('gulp-autoprefixer');
 const browserSync = require('browser-sync').create();
 const del = require('del');
+const image = require('gulp-image');
 
 function javascript() {
     return src('src/js/*.js')
@@ -17,13 +18,15 @@ function javascript() {
         .pipe(uglify())
         .pipe(sourcemaps.write())
         .pipe(plumber.stop())
-        .pipe(dest('./dist/js'));
+        .pipe(dest('./dist/js'))
+        .pipe(browserSync.stream());
 }
 
 function html() {
     return src('./src/html/*.html')
         .pipe(htmlExtender({ annotations: true, verbose: false }))
         .pipe(dest('./dist'))
+        .pipe(browserSync.stream())
 }
 
 function styles() {
@@ -37,15 +40,20 @@ function styles() {
             .pipe(sourcemaps.write())
             .pipe(plumber.stop())
             .pipe(dest("./dist/css"))
+            .pipe(browserSync.stream())
     );
 }
 
-function watchFiles() {
-    clean();
-    styles();
-    javascript();
-    html();
+function images() {
+    return (
+        src('./src/images/**/*')
+            .pipe(image())
+            .pipe(dest('./dist/images'))
+            .pipe(browserSync.stream())
+    )
+}
 
+function watchFiles() {
     browserSync.init({
         server: {
             baseDir: "./dist",
@@ -54,23 +62,14 @@ function watchFiles() {
     });
 
 
-    watch('./src/scss/**/*.scss').on('change', () => {
-        styles();
-        browserSync.reload();
-    });
-    watch('./src/html/**/*.html').on('change', () => {
-        html();
-        browserSync.reload();
-    });
-    watch('./src/js/**/*.js').on('change', () => {
-        javascript();
-        browserSync.reload();
-    });
+    watch('./src/scss/**/*.scss', styles);
+    watch('./src/html/**/*.html', html);
+    watch('./src/js/**/*.js', javascript);
 }
 
-function clean() {
-    del.sync(['./dist']);
+async function clean() {
+    await del(['./dist']);
 }
 
-exports.default = watchFiles;
+exports.default = series(clean, parallel(styles, html, javascript), watchFiles);
 exports.build = series(clean, parallel(styles, html, javascript));
